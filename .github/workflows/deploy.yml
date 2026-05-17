@@ -1,0 +1,65 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  repository_dispatch:
+    types:
+      - content-updated
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout your repository using git
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          token: ${{ secrets.PAT_TOKEN }}  # 自动访问同账号下的私有仓库
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build site
+        run: pnpm run build
+        env:
+          # 禁用内容同步，使用本地内容
+          ENABLE_CONTENT_SYNC: true
+          CONTENT_REPO_URL: https://${{ secrets.PAT_TOKEN }}@github.com/lvxiaoluo/blog-content.git
+          USE_SUBMODULE: false
+
+      - name: Check dist directory
+        run: |
+          echo "=== dist 目录内容 ==="
+          ls -la dist/
+          echo ""
+          echo "=== _astro 目录内容 ==="
+          ls -la dist/_astro/ 2>/dev/null || echo "_astro 目录不存在"
+          echo ""
+          echo "=== index.html 检查 ==="
+          head -50 dist/index.html 2>/dev/null || echo "index.html 不存在"
+
+      - name: Deploy to pages branch
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: pages
+          folder: dist
+          clean: true
+          clean-exclude: |
+            .gitkeep
